@@ -6,6 +6,10 @@
 	<title>MC Server Pinger</title>
 	<style>
 		@import url(https://fonts.googleapis.com/css2?family=VT323&display=swap);
+		:root {
+			font-size: 1.2rem;
+			overflow-x: hidden;
+		}
 		body {
 			padding: 0;
 			margin: 0;
@@ -14,15 +18,17 @@
 			height: 100vh;
 			width: 100vw;
 			display: flex;
-			align-items: center;
 			justify-content: center;
 			font-family: 'VT323', monospace;
+			overflow-y: auto;
 			> div {
 				width: 400px;
 				max-width: calc(100vw - 2rem);
 				display: flex;
 				flex-direction: column;
 				gap: .7rem;
+				margin-top: 25vh;
+				padding-bottom: 15vh;
 				> * {
 					padding: .7rem;
 					background-color: #222;
@@ -33,6 +39,7 @@
 					background-color: transparent;
 					text-align: center;
 					margin-bottom: 1rem;
+					padding: 0;
 					h1 {
 						font-size: 2rem;
 						margin: 0;
@@ -52,7 +59,7 @@
 					input, button {
 						border: solid 1px #333;
 					}
-					#ip, #start {
+					#ip, #start, #interval {
 						appearance: none;
 						background-color: #111;
 						padding: .3rem .5rem;
@@ -61,6 +68,7 @@
 						font-size: inherit;
 					}
 					#ip {width: 100%}
+					#interval {width: 5ch}
 					#start {
 						background-color: #333;
 						cursor: pointer;
@@ -91,17 +99,17 @@
 						font-weight: bold;
 						font-size: 1.5rem;
 					}
-					.ip {opacity: .7;}
-					.players {font-size: 1.3rem;}
-					details > :not(summary) {
-						padding-left: .5rem;
-					}
-					details > div {
-						padding-left: 1rem;
-						display: flex;
-						justify-content: space-between;
-						> :first-child {
-							font-weight: bold;
+					.ip {opacity: .7}
+					.players {font-size: 1.3rem}
+					details {
+						max-height: 15lh;
+						overflow-y: auto;
+						:not(summary) {padding-inline: .5rem}
+						> div {
+							padding-left: 1rem;
+							display: flex;
+							justify-content: space-between;
+							> :first-child {font-weight: bold}
 						}
 					}
 				}
@@ -112,6 +120,7 @@
 		window.addEventListener('load', () => {
 			const IP = document.getElementById('ip')
 			const START = document.getElementById('start')
+			const INTERVAL = document.getElementById('interval')
 			const WRAPPER = document.body.firstElementChild
 
 			START.addEventListener('click', async function() {
@@ -119,7 +128,7 @@
 				const ip = IP.value
 				IP.value = ''
 
-				if (document.getElementById(ip)) return
+				if (!ip.length || document.getElementById(ip)) return
 
 				const wrapper = document.createElement('div')
 				wrapper.className = 'server'
@@ -134,7 +143,7 @@
 				WRAPPER.append(wrapper)
 
 				createEntry(ip, await fetchInfo(ip))
-				setInterval(async () => createEntry(ip, await fetchInfo(ip)), 60000)
+				setInterval(async () => createEntry(ip, await fetchInfo(ip)), 60000 * INTERVAL.value)
 			})
 
 			async function fetchInfo(ip) {
@@ -165,16 +174,19 @@
 				const entry = document.createElement('details')
 				const summary = document.createElement('summary')
 				const date = new Date(Date.now())
-				const timestamp = [
-					date.getFullYear(),
-					date.getMonth()+1,
-					date.getDate(),
-					date.getHours(),
-					date.getMinutes(),
-					date.getSeconds(),
-				].join(':')
+				const timestamp = [[
+						`${date.getDate()}`.padStart(2, '0'),
+						`${date.getMonth()+1}`.padStart(2, '0'),
+						date.getFullYear(),
+					].join('/'), [
+						`${date.getHours()}`.padStart(2, '0'),
+						`${date.getMinutes()}`.padStart(2, '0'),
+						`${date.getSeconds()}`.padStart(2, '0'),
+					].join(':')
+				].join(', ')
 
-				summary.innerHTML = `${timestamp} - ${response.ok? info?.motd?.clean : 'Error'}`
+				summary.innerHTML = timestamp
+				entry.setAttribute('open', '')
 				entry.append(summary)
 
 				addValue('Online', info?.online)
@@ -202,10 +214,11 @@
 			<h1>MC Server Pinger</h1>
 			<small>Made by <a href="https://github.com/RustyGentleman">Rasutei</a></small>
 			<br>
-			<div class="info">A small utility for pinging Minecraft servers. Displays server information such as MOTD, version, and online/max players. Updates once a minute.</div>
+			<div class="info">A small utility for pinging Minecraft servers for information such as MOTD, version, and online/max players on a configurable interval (in minutes).</div>
 		</div>
 		<div id="ui">
 			<input type="text" name="ip" id="ip" placeholder="Minecraft server IP">
+			<input type="number" name="interval" id="interval" value="10" min="1" step="1">
 			<button id="start">Start</button>
 		</div>
 	</div>
