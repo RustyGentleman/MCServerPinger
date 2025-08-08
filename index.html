@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>MC Server Pinger</title>
+	<style>
+		@import url(https://fonts.googleapis.com/css2?family=VT323&display=swap);
+		body {
+			padding: 0;
+			margin: 0;
+			background-color: #111;
+			color: #ccc;
+			height: 100vh;
+			width: 100vw;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-family: 'VT323', monospace;
+			> div {
+				width: 400px;
+				max-width: calc(100vw - 2rem);
+				display: flex;
+				flex-direction: column;
+				gap: .7rem;
+				> * {
+					padding: .7rem;
+					background-color: #222;
+					border-radius: .3rem;
+				}
+				#header {
+					display: block;
+					background-color: transparent;
+					text-align: center;
+					margin-bottom: 1rem;
+					h1 {
+						font-size: 2rem;
+						margin: 0;
+					}
+					small {
+						font-size: 1rem;
+						opacity: .7;
+						a {color: inherit}
+					}
+					.info {
+						margin-top: 1rem;
+					}
+				}
+				#ui {
+					display: flex;
+					gap: .5rem;
+					input, button {
+						border: solid 1px #333;
+					}
+					#ip, #start {
+						appearance: none;
+						background-color: #111;
+						padding: .3rem .5rem;
+						font-family: inherit;
+						color: inherit;
+						font-size: inherit;
+					}
+					#ip {width: 100%}
+					#start {
+						background-color: #333;
+						cursor: pointer;
+						&:hover {
+							background-color: #444;
+						}
+					}
+				}
+				> .server {
+					.info {
+						display: grid;
+						grid-template-columns: 5rem auto;
+						gap: 0 .5rem;
+						margin-bottom: .5rem;
+					}
+					.icon {
+						height: 5rem;
+						width: 5rem;
+						grid-column: 1;
+						grid-row: 1 / 5;
+						img {
+							height: 100%;
+							width: 100%;
+						}
+					}
+					.name, .ip, .players {grid-column: 2}
+					.name {
+						font-weight: bold;
+						font-size: 1.5rem;
+					}
+					.ip {opacity: .7;}
+					.players {font-size: 1.3rem;}
+					details > :not(summary) {
+						padding-left: .5rem;
+					}
+					details > div {
+						padding-left: 1rem;
+						display: flex;
+						justify-content: space-between;
+						> :first-child {
+							font-weight: bold;
+						}
+					}
+				}
+			}
+		}
+	</style>
+	<script>
+		window.addEventListener('load', () => {
+			const IP = document.getElementById('ip')
+			const START = document.getElementById('start')
+			const WRAPPER = document.body.firstElementChild
+
+			START.addEventListener('click', async function() {
+				console.log('Starting interval')
+				const ip = IP.value
+				IP.value = ''
+
+				if (document.getElementById(ip)) return
+
+				const wrapper = document.createElement('div')
+				wrapper.className = 'server'
+				wrapper.id = ip
+				wrapper.innerHTML = `<div class="info">`
+					+`<div class="icon"><img/></div>`
+					+`<div class="name">Awaiting response...</div>`
+					+`<div class="ip">${ip}</div>`
+					+`<div class="players">?/?</div>`
+					+`</div>`
+					+`<details open><summary>Ping responses</summary</details>`
+				WRAPPER.append(wrapper)
+
+				createEntry(ip, await fetchInfo(ip))
+				setInterval(async () => createEntry(ip, await fetchInfo(ip)), 60000)
+			})
+
+			async function fetchInfo(ip) {
+				console.log('Fetching')
+				let response
+				let info
+				await fetch(`https://api.mcsrvstat.us/2/${ip}`)
+					.then(res => {
+						response = res
+						if (!res.ok) throw new Error("Network response was not ok")
+						return res.json()
+					})
+					.then(data => info = data)
+					.catch(err => info = err)
+				console.log('Response:\n', response)
+				console.log('Server info:\n',info)
+				console.log('Fetch end')
+				return {response, info}
+			}
+			function createEntry(ip, data) {
+				const {response, info} = data
+				const listing = document.getElementById(ip)
+				listing.querySelector('.icon').firstElementChild.src = info?.icon
+				listing.querySelector('.name').textContent = info?.motd?.clean
+				listing.querySelector('.players').textContent = `${info?.players?.online}/${info?.players?.max}`
+
+				const wrapper = document.createElement('div')
+				const entry = document.createElement('details')
+				const summary = document.createElement('summary')
+				const date = new Date(Date.now())
+				const timestamp = [
+					date.getFullYear(),
+					date.getMonth()+1,
+					date.getDate(),
+					date.getHours(),
+					date.getMinutes(),
+					date.getSeconds(),
+				].join(':')
+
+				summary.innerHTML = `${timestamp} - ${response.ok? info?.motd?.clean : 'Error'}`
+				entry.append(summary)
+
+				addValue('Online', info?.online)
+				addValue('Version', info?.version)
+				addValue('Players', info?.players?.online? `<details open><summary>${info?.players?.online}/${info?.players?.max}</summary>${info?.players?.list?.join('\n')}</details>` : `${info?.players?.online}/${info?.players?.max}`)
+
+				listing.lastElementChild.append(entry)
+
+				function addValue(label, value) {
+					const wrapper = document.createElement('div')
+					const elabel = document.createElement('span')
+					const evalue = document.createElement('span')
+					elabel.innerHTML = label+':'
+					evalue.innerHTML = value
+					wrapper.append(elabel, evalue)
+					entry.append(wrapper)
+				}
+			}
+		})
+	</script>
+</head>
+<body>
+	<div>
+		<div id="header">
+			<h1>MC Server Pinger</h1>
+			<small>Made by <a href="https://github.com/RustyGentleman">Rasutei</a></small>
+			<br>
+			<div class="info">A small utility for pinging Minecraft servers. Displays server information such as MOTD, version, and online/max players. Updates once a minute.</div>
+		</div>
+		<div id="ui">
+			<input type="text" name="ip" id="ip" placeholder="Minecraft server IP">
+			<button id="start">Start</button>
+		</div>
+	</div>
+</body>
+</html>
