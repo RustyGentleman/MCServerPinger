@@ -15,20 +15,20 @@
 			margin: 0;
 			background-color: #111;
 			color: #ccc;
-			height: 100vh;
+			max-height: 100vh;
 			width: 100vw;
 			display: flex;
 			justify-content: center;
 			font-family: 'VT323', monospace;
 			overflow-y: auto;
+			padding-bottom: 15vh;
 			> div {
-				width: 400px;
+				min-width: 400px;
 				max-width: calc(100vw - 2rem);
 				display: flex;
 				flex-direction: column;
 				gap: .7rem;
 				margin-top: 25vh;
-				padding-bottom: 15vh;
 				> * {
 					padding: .7rem;
 					background-color: #222;
@@ -78,38 +78,110 @@
 					}
 				}
 				> .server {
-					.info {
+					.info-panel {
 						display: grid;
 						grid-template-columns: 5rem auto;
 						gap: 0 .5rem;
 						margin-bottom: .5rem;
-					}
-					.icon {
-						height: 5rem;
-						width: 5rem;
-						grid-column: 1;
-						grid-row: 1 / 5;
-						img {
-							height: 100%;
-							width: 100%;
+						.icon {
+							height: 5rem;
+							width: 5rem;
+							grid-column: 1;
+							grid-row: 1 / 5;
+							img {
+								height: 100%;
+								width: 100%;
+							}
+						}
+						.name, .ip, .status-players, .players {grid-column: 2}
+						.name {
+							font-weight: bold;
+							font-size: 1.5rem;
+						}
+						.ip {opacity: .7}
+						.status-players {
+							display: flex;
+							gap: 0 .5rem;
+							.status {
+								position: relative;
+								margin-left: 1lh;
+								&::before {
+									content: '';
+									position: absolute;
+									left: -1lh;
+									top: 2px;
+									box-sizing: border-box;
+									width: .8lh;
+									height: .8lh;
+									border: solid 3px;
+									border-radius: 100%;
+								}
+								&.online::before {
+									background-color: #0c0;
+									border-color: #0f0;
+								}
+								&.offline::before {
+									background-color: #c11;
+									border-color: #700;
+								}
+							}
+						}
+						.players {
+							display: flex;
+							flex-wrap: wrap;
+							flex-direction: row;
+							gap: .3rem;
+							span {
+								border: solid 1px;
+								border-radius: .3rem;
+								padding: 0 .2rem;
+							}
 						}
 					}
-					.name, .ip, .players {grid-column: 2}
-					.name {
-						font-weight: bold;
-						font-size: 1.5rem;
-					}
-					.ip {opacity: .7}
-					.players {font-size: 1.3rem}
 					details {
 						max-height: 15lh;
 						overflow-y: auto;
-						:not(summary) {padding-inline: .5rem}
-						> div {
-							padding-left: 1rem;
-							display: flex;
-							justify-content: space-between;
-							> :first-child {font-weight: bold}
+						&.pings {
+							:not(summary) {padding-inline: .5rem}
+							details > div {
+								padding-left: 1rem;
+								display: flex;
+								justify-content: space-between;
+								> :first-child {font-weight: bold}
+							}
+							span > details[open] {
+								display: flex;
+								flex-direction: column;
+								align-items: flex-end;
+							}
+						}
+						&.player-activity {
+							.in {color: #0c0}
+							.out {color: #c11}
+							span {
+								border: solid 1px;
+								border-radius: .3rem;
+								padding: 0 .2rem;
+							}
+							> div:nth-of-type(2n) {background-color: #333;}
+							> div {
+								display: grid;
+								grid-template-columns: 1fr auto;
+								div {grid-row: 1}
+								.timestamp {
+									display: flex;
+									align-items: center;
+									opacity: .7;
+									grid-column: 2;
+									padding-inline: .5rem;
+								}
+								.timestamp + div {
+									display: flex;
+									flex-wrap: wrap;
+									gap: .3rem;
+									text-align: left;
+								}
+							}
 						}
 					}
 				}
@@ -133,13 +205,20 @@
 				const wrapper = document.createElement('div')
 				wrapper.className = 'server'
 				wrapper.id = ip
-				wrapper.innerHTML = `<div class="info">`
+				wrapper.innerHTML = `<div class="info-panel">`
 					+`<div class="icon"><img/></div>`
-					+`<div class="name">Awaiting response...</div>`
-					+`<div class="ip">${ip}</div>`
-					+`<div class="players">?/?</div>`
+					+`<div class="info">`
+						+`<div class="name">Awaiting response...</div>`
+						+`<div class="ip">${ip}</div>`
+						+`<div class="status-players">`
+							+`<div class="status">...</div>`
+							+`<div class="player-count">?/?</div>`
+						+`</div>`
+						+`<div class="players"></div>`
+						+`</div>`
 					+`</div>`
-					+`<details open><summary>Ping responses</summary</details>`
+					+`<details class="pings"><summary>Ping responses</summary></details>`
+					+`<details class="player-activity"><summary>Player activity</summary></details>`
 				WRAPPER.append(wrapper)
 
 				createEntry(ip, await fetchInfo(ip))
@@ -153,7 +232,7 @@
 				await fetch(`https://api.mcsrvstat.us/2/${ip}`)
 					.then(res => {
 						response = res
-						if (!res.ok) throw new Error("Network response was not ok")
+						// if (!res.ok) throw new Error("Network response was not ok")
 						return res.json()
 					})
 					.then(data => info = data)
@@ -168,9 +247,23 @@
 				const listing = document.getElementById(ip)
 				listing.querySelector('.icon').firstElementChild.src = info?.icon
 				listing.querySelector('.name').textContent = info?.motd?.clean
-				listing.querySelector('.players').textContent = `${info?.players?.online}/${info?.players?.max}`
+				const lastOnline = Array.from(listing.querySelector('.players').children?? []).map(e => e.textContent)
+				if (info?.online) {
+					listing.querySelector('.status').textContent = 'Online'
+					listing.querySelector('.status').classList.add('online')
+					listing.querySelector('.status').classList.remove('offline')
+					listing.querySelector('.player-count').textContent = `${info?.players?.online}/${info?.players?.max}`
+					listing.querySelector('.players').innerHTML = info?.players?.list?.map(e => `<span>${e}</span>`).join('') || ''
+				} else {
+					listing.querySelector('.status').textContent = 'Offline'
+					listing.querySelector('.status').classList.add('offline')
+					listing.querySelector('.status').classList.remove('online')
+					listing.querySelector('.player-count').textContent = `?/?`
+					listing.querySelector('.players').textContent = ''
+				}
 
-				const wrapper = document.createElement('div')
+				//* Ping response entry
+				const wrapperPingEntry = document.createElement('div')
 				const entry = document.createElement('details')
 				const summary = document.createElement('summary')
 				const date = new Date(Date.now())
@@ -184,16 +277,47 @@
 						`${date.getSeconds()}`.padStart(2, '0'),
 					].join(':')
 				].join(', ')
+				const timeShort = [
+					`${date.getHours()}`.padStart(2, '0'),
+					`${date.getMinutes()}`.padStart(2, '0'),
+				].join(':')
 
 				summary.innerHTML = timestamp
-				entry.setAttribute('open', '')
 				entry.append(summary)
 
-				addValue('Online', info?.online)
-				addValue('Version', info?.version)
-				addValue('Players', info?.players?.online? `<details open><summary>${info?.players?.online}/${info?.players?.max}</summary>${info?.players?.list?.join('\n')}</details>` : `${info?.players?.online}/${info?.players?.max}`)
+				if (info?.online == true) {
+					addValue('Online', info?.online)
+					addValue('Version', info?.version)
+					addValue('Players', info?.players?.online? `<details><summary>${info?.players?.online}/${info?.players?.max}</summary>${info?.players?.list?.join(', ')}</details>` : `${info?.players?.online}/${info?.players?.max}`)
+				} else {
+					addValue(error, `${info}`)
+				}
 
-				listing.lastElementChild.append(entry)
+				listing.querySelector('details.pings').append(entry)
+
+				//* Player activity approximation
+				const activity = listing.querySelector('details.player-activity')
+				const online = info?.players?.list
+				const loggedOut = Array.from(new Set(lastOnline).difference(new Set(online)))
+				const loggedIn = Array.from(new Set(online).difference(new Set(lastOnline)))
+				const wrapperActivityEntry = document.createElement('div')
+				const wrapperPlayers = document.createElement('div')
+
+				console.log('Last online: ', lastOnline)
+				console.log('Online: ', online)
+				console.log('Logged in: ', loggedIn)
+				console.log('Logged out: ', loggedOut)
+
+				wrapperActivityEntry.innerHTML = `<div class="timestamp" title="${timestamp}">${timeShort}</div>`
+				wrapperActivityEntry.append(wrapperPlayers)
+
+				for (const player of loggedOut)
+					wrapperPlayers.innerHTML += `<span class="out">${player}</span>`
+				for (const player of loggedIn)
+					wrapperPlayers.innerHTML += `<span class="in">${player}</span>`
+
+				if ((loggedOut.length + loggedIn.length) > 0)
+					activity.append(wrapperActivityEntry)
 
 				function addValue(label, value) {
 					const wrapper = document.createElement('div')
@@ -214,7 +338,11 @@
 			<h1>MC Server Pinger</h1>
 			<small>Made by <a href="https://github.com/RustyGentleman">Rasutei</a></small>
 			<br>
-			<div class="info">A small utility for pinging Minecraft servers for information such as MOTD, version, and online/max players on a configurable interval (in minutes).</div>
+			<div class="info">
+				A small utility for pinging Minecraft servers for information<br>
+				such as MOTD, version, player count and player names<br>
+				on a configurable interval (in minutes).
+			</div>
 		</div>
 		<div id="ui">
 			<input type="text" name="ip" id="ip" placeholder="Minecraft server IP">
