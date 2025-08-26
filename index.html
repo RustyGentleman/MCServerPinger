@@ -290,14 +290,14 @@
 					addValue('Version', info?.version)
 					addValue('Players', info?.players?.online? `<details><summary>${info?.players?.online}/${info?.players?.max}</summary>${info?.players?.list?.join(', ')}</details>` : `${info?.players?.online}/${info?.players?.max}`)
 				} else {
-					addValue(error, `${info}`)
+					addValue('Error', `${info}`)
 				}
 
 				listing.querySelector('details.pings').append(entry)
 
 				//* Player activity approximation
 				const activity = listing.querySelector('details.player-activity')
-				const online = info?.players?.list
+				const online = info?.players?.list || []
 				const loggedOut = Array.from(new Set(lastOnline).difference(new Set(online)))
 				const loggedIn = Array.from(new Set(online).difference(new Set(lastOnline)))
 				const wrapperActivityEntry = document.createElement('div')
