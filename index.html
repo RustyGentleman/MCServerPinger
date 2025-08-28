@@ -32,7 +32,7 @@
 				> * {
 					padding: .7rem;
 					background-color: #222;
-					border-radius: .3rem;
+					border-radius: .5rem;
 				}
 				#header {
 					display: block;
@@ -54,6 +54,7 @@
 					}
 				}
 				#ui {
+					position: relative;
 					display: flex;
 					gap: .5rem;
 					input, button {
@@ -76,8 +77,30 @@
 							background-color: #444;
 						}
 					}
+					&::before {
+						content: '';
+						position: absolute;
+						inset: 0;
+						top: 50%;
+						z-index: -1;
+						background-color: #191919;
+						border: solid 1px #222;
+						border-width: 0 1px;
+					}
+				}
+				#options {
+					display: flex;
+					margin-top: -.7rem;
+					padding: .1rem .3rem;
+					border: solid 1px #222;
+					border-top: none;
+					border-radius: 0 0 .5rem .5rem;
+					background-color: #191919;
+					font-size: .8em;
+					label {display: flex}
 				}
 				> .server {
+					position: relative;
 					.info-panel {
 						display: grid;
 						grid-template-columns: 5rem auto;
@@ -131,11 +154,7 @@
 							flex-wrap: wrap;
 							flex-direction: row;
 							gap: .3rem;
-							span {
-								border: solid 1px;
-								border-radius: .3rem;
-								padding: 0 .2rem;
-							}
+							margin-top: .2rem;
 						}
 					}
 					details {
@@ -158,11 +177,7 @@
 						&.player-activity {
 							.in {color: #0c0}
 							.out {color: #c11}
-							span {
-								border: solid 1px;
-								border-radius: .3rem;
-								padding: 0 .2rem;
-							}
+							.phead {border: solid 1px;}
 							> div:nth-of-type(2n) {background-color: #333;}
 							> div {
 								display: grid;
@@ -184,16 +199,61 @@
 							}
 						}
 					}
+					.close {
+						display: flex;
+						align-items: center;
+						height: 1ch;
+						width: 1ch;
+						position: absolute;
+						top: .5rem;
+						right: .5rem;
+						cursor: pointer;
+					}
+				}
+			}
+			.player {
+				img {
+					height: 2ch;
+					width: 2ch;
+				}
+				.pname {
+					border: solid 1px;
+					border-radius: .3rem;
+					padding: 0 .2rem;
+				}
+			}
+			&.pheads {
+				.player {
+					.pname {display: none}
+				}
+			}
+			&:not(.pheads) {
+				.player {
+					.phead {display: none}
 				}
 			}
 		}
+		@keyframes spin {
+			0% {transform: rotate(0deg)}
+			100% {transform: rotate(360deg)}
+		}
+		.spin {animation: spin 2s cubic-bezier(0.28, -0.22, 0.22, 1.29)}
 	</style>
 	<script>
+		const watchers = new Map()
 		window.addEventListener('load', () => {
 			const IP = document.getElementById('ip')
 			const START = document.getElementById('start')
 			const INTERVAL = document.getElementById('interval')
 			const WRAPPER = document.body.firstElementChild
+
+			if (window.localStorage.getItem('pheads') === 'true') {
+				document.body.classList.add('pheads')
+				document.getElementById('option-pheads').setAttribute('checked', '')
+			} else if (window.localStorage.getItem('pheads') === 'false') {
+				document.body.classList.remove('pheads')
+				document.getElementById('option-pheads').removeAttribute('checked')
+			}
 
 			START.addEventListener('click', async function() {
 				console.log('Starting interval')
@@ -217,12 +277,13 @@
 						+`<div class="players"></div>`
 						+`</div>`
 					+`</div>`
+					+`<div class="close" onclick="Kill(this.parentElement)">x</div>`
 					+`<details class="pings"><summary>Ping responses</summary></details>`
 					+`<details class="player-activity"><summary>Player activity</summary></details>`
 				WRAPPER.append(wrapper)
 
 				createEntry(ip, await fetchInfo(ip))
-				setInterval(async () => createEntry(ip, await fetchInfo(ip)), 60000 * INTERVAL.value)
+				watchers.set(ip, setInterval(async () => createEntry(ip, await fetchInfo(ip)), 60000 * INTERVAL.value))
 			})
 
 			async function fetchInfo(ip) {
@@ -247,13 +308,19 @@
 				const listing = document.getElementById(ip)
 				listing.querySelector('.icon').firstElementChild.src = info?.icon
 				listing.querySelector('.name').textContent = info?.motd?.clean
-				const lastOnline = Array.from(listing.querySelector('.players').children?? []).map(e => e.textContent)
+				const lastOnline = Array.from(listing.querySelector('.players').children?? []).reduce((prev, cur) => {
+					prev[cur.textContent] = cur.querySelector('img').src.match(/\/([^\/]*)$/)[1]
+					return prev
+				}, {})
 				if (info?.online) {
 					listing.querySelector('.status').textContent = 'Online'
 					listing.querySelector('.status').classList.add('online')
 					listing.querySelector('.status').classList.remove('offline')
 					listing.querySelector('.player-count').textContent = `${info?.players?.online}/${info?.players?.max}`
-					listing.querySelector('.players').innerHTML = info?.players?.list?.map(e => `<span>${e}</span>`).join('') || ''
+					listing.querySelector('.players').innerHTML = ''
+					for (const [player, uuid] of Object.entries(info?.players?.uuid))
+						listing.querySelector('.players').innerHTML += `<div class="player" title="${player}"><img class="phead" src="https://mc-heads.net/avatar/${uuid}"/><span class="pname">${player}</span></div>`
+					// listing.querySelector('.players').innerHTML = info?.players?.list?.map(e => `<div class="player" title="${e}"><img src="https://mc-heads.net/avatar/${}"/></div>`).join('') || ''
 				} else {
 					listing.querySelector('.status').textContent = 'Offline'
 					listing.querySelector('.status').classList.add('offline')
@@ -297,9 +364,20 @@
 
 				//* Player activity approximation
 				const activity = listing.querySelector('details.player-activity')
-				const online = info?.players?.list || []
-				const loggedOut = Array.from(new Set(lastOnline).difference(new Set(online)))
-				const loggedIn = Array.from(new Set(online).difference(new Set(lastOnline)))
+				const online = info?.players?.uuid || {}
+				// const loggedOut = Array.from(new Set(lastOnline).difference(new Set(online)))
+				const loggedOut = Object.entries(lastOnline)
+					.filter(([username]) => !(username in online))
+					.reduce((prev, [username, uuid]) => {
+						prev[username] = uuid
+						return prev
+					}, {})
+				const loggedIn = Object.entries(online)
+					.filter(([username]) => !(username in lastOnline))
+					.reduce((prev, [username, uuid]) => {
+						prev[username] = uuid
+						return prev
+					}, {})
 				const wrapperActivityEntry = document.createElement('div')
 				const wrapperPlayers = document.createElement('div')
 
@@ -311,12 +389,12 @@
 				wrapperActivityEntry.innerHTML = `<div class="timestamp" title="${timestamp}">${timeShort}</div>`
 				wrapperActivityEntry.append(wrapperPlayers)
 
-				for (const player of loggedOut)
-					wrapperPlayers.innerHTML += `<span class="out">${player}</span>`
-				for (const player of loggedIn)
-					wrapperPlayers.innerHTML += `<span class="in">${player}</span>`
+				for (const [player, uuid] of Object.entries(loggedOut))
+					wrapperPlayers.innerHTML += `<div class="player out" title="${player}"><img class="phead" src="https://mc-heads.net/avatar/${uuid}"/><span class="pname">${player}</span></div>`
+				for (const [player, uuid] of Object.entries(loggedIn))
+					wrapperPlayers.innerHTML += `<div class="player in" title="${player}"><img class="phead" src="https://mc-heads.net/avatar/${uuid}"/><span class="pname">${player}</span></div>`
 
-				if ((loggedOut.length + loggedIn.length) > 0)
+				if ((Object.keys(loggedOut).length + Object.keys(loggedIn).length) > 0)
 					activity.append(wrapperActivityEntry)
 
 				function addValue(label, value) {
@@ -330,13 +408,54 @@
 				}
 			}
 		})
+		function Kill(server) {
+			clearInterval(watchers.get(server.id))
+			server.remove()
+			watchers.delete(server.id)
+		}
+		function TogglePlayerHeads() {
+			document.body.classList.toggle('pheads')
+			window.localStorage.setItem('pheads', document.body.classList.contains('pheads'))
+		}
+
+		//# Key combos
+		{
+			let typed = ''
+			let timeoutID
+			const combos = [
+				{trigger: 'spin', callback: () => {
+					document.querySelectorAll('div').forEach(async e => {
+						e.classList.add('spin')
+						await new Promise(r => setTimeout(r, 2100))
+						e.classList.remove('spin')
+					})
+				}},
+			]
+
+			document.addEventListener('keydown', (e) => {
+				if (e.key?.length === 1 && e.key?.match(/\w{1}/)) {
+					typed += e.key.toLowerCase()
+					console.log(typed)
+					for (const combo of combos)
+						if (typed === combo.trigger) {
+							combo.callback()
+							typed = ''
+						}
+				}
+				if (timeoutID) clearTimeout(timeoutID)
+				timeoutID = setTimeout(() => {
+					typed = ''
+					timeoutID = undefined
+				}, 1000)
+			})
+		}
 	</script>
 </head>
-<body>
+<body class="pheads">
 	<div>
 		<div id="header">
 			<h1>MC Server Pinger</h1>
-			<small>Made by <a href="https://github.com/RustyGentleman">Rasutei</a></small>
+			<small>Made by <a href="https://github.com/RustyGentleman"><img src="https://mc-heads.net/avatar/e6440362-a1a9-4cbf-a807-b4132cddbdca" style="height:1lh;transform:translateY(.2lh)">Rasutei</a></small>
 			<br>
 			<div class="info">
 				A small utility for pinging Minecraft servers for information<br>
@@ -345,9 +464,15 @@
 			</div>
 		</div>
 		<div id="ui">
-			<input type="text" name="ip" id="ip" placeholder="Minecraft server IP">
-			<input type="number" name="interval" id="interval" value="10" min="1" step="1">
+			<input type="text" name="ip" id="ip" placeholder="Minecraft server IP" title="Server IP">
+			<input type="number" name="interval" id="interval" value="10" min="1" step="1" title="Interval (minutes)">
 			<button id="start">Start</button>
+		</div>
+		<div id="options">
+			<label>
+				<input type="checkbox" id="option-pheads" checked onclick="TogglePlayerHeads()">
+				Player heads
+			</label>
 		</div>
 	</div>
 </body>
