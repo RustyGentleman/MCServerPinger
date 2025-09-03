@@ -318,9 +318,9 @@
 					listing.querySelector('.status').classList.remove('offline')
 					listing.querySelector('.player-count').textContent = `${info?.players?.online}/${info?.players?.max}`
 					listing.querySelector('.players').innerHTML = ''
-					for (const [player, uuid] of Object.entries(info?.players?.uuid))
-						listing.querySelector('.players').innerHTML += `<div class="player" title="${player}"><img class="phead" src="https://mc-heads.net/avatar/${uuid}"/><span class="pname">${player}</span></div>`
-					// listing.querySelector('.players').innerHTML = info?.players?.list?.map(e => `<div class="player" title="${e}"><img src="https://mc-heads.net/avatar/${}"/></div>`).join('') || ''
+					if (info?.players?.uuid)
+						for (const [player, uuid] of Object.entries(info?.players?.uuid))
+							listing.querySelector('.players').innerHTML += `<div class="player" title="${player}"><img class="phead" src="https://mc-heads.net/avatar/${uuid}"/><span class="pname">${player}</span></div>`
 				} else {
 					listing.querySelector('.status').textContent = 'Offline'
 					listing.querySelector('.status').classList.add('offline')
