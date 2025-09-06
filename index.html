@@ -306,7 +306,8 @@
 			function createEntry(ip, data) {
 				const {response, info} = data
 				const listing = document.getElementById(ip)
-				listing.querySelector('.icon').firstElementChild.src = info?.icon
+				if (info?.icon)
+					listing.querySelector('.icon').firstElementChild.src = info?.icon
 				listing.querySelector('.name').textContent = info?.motd?.clean
 				const lastOnline = Array.from(listing.querySelector('.players').children?? []).reduce((prev, cur) => {
 					prev[cur.textContent] = cur.querySelector('img').src.match(/\/([^\/]*)$/)[1]
@@ -357,10 +358,14 @@
 					addValue('Version', info?.version)
 					addValue('Players', info?.players?.online? `<details><summary>${info?.players?.online}/${info?.players?.max}</summary>${info?.players?.list?.join(', ')}</details>` : `${info?.players?.online}/${info?.players?.max}`)
 				} else {
-					addValue('Error', `${info}`)
+					addValue('Online', info?.online)
+					addValue('Error', `${info?.debug?.error?.ping}`)
 				}
 
 				listing.querySelector('details.pings').append(entry)
+
+				if (info?.online == false)
+					return
 
 				//* Player activity approximation
 				const activity = listing.querySelector('details.player-activity')
